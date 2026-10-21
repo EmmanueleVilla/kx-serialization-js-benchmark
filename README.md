@@ -5,22 +5,37 @@ Let's determine the best way of decoding JSON in K/JS!
 Data classes from [Projector protocol](https://github.com/JetBrains/projector-client) are taken. A 200 KB JSON containing a snapshot of IntelliJ IDEA UI is used.
 
 ## Competitors
-- `kotlinx.serialization.json.Json.parse` ([KotlinxJsonDecoder.kt](src/main/kotlin/decoder/KotlinxJsonDecoder.kt)).
-- `kotlinx.serialization.DynamicObjectParser.parse` ([KotlinxDopJsonDecoder.kt](src/main/kotlin/decoder/KotlinxDopJsonDecoder.kt)).
-- A manual parser which uses `when` to handle polymorphism ([ManualWhenJsonDecoder.kt](src/main/kotlin/decoder/ManualWhenJsonDecoder.kt)).
-- A manual parser which uses `mapOf` to handle polymorphism ([ManualKotlinMapJsonDecoder.kt](src/main/kotlin/decoder/ManualKotlinMapJsonDecoder.kt)).
-- A manual parser which uses `json` to handle polymorphism ([ManualJsMapJsonDecoder.kt](src/main/kotlin/decoder/ManualJsMapJsonDecoder.kt)).
+- `kotlinx.serialization.json.Json.decodeFromString` ([KotlinxJsonDecoder.kt](src/jsMain/kotlin/decoder/KotlinxJsonDecoder.kt)).
+- `JSON.parse` + `kotlinx.serialization.json.Json.decodeFromDynamic` ([KotlinxDopJsonDecoder.kt](src/jsMain/kotlin/decoder/KotlinxDopJsonDecoder.kt)), the successor of `DynamicObjectParser`.
+- A manual parser which uses `when` to handle polymorphism ([ManualWhenJsonDecoder.kt](src/jsMain/kotlin/decoder/ManualWhenJsonDecoder.kt)).
+- A manual parser which uses `mapOf` to handle polymorphism ([ManualKotlinMapJsonDecoder.kt](src/jsMain/kotlin/decoder/ManualKotlinMapJsonDecoder.kt)).
+- A manual parser which uses `json` to handle polymorphism ([ManualJsMapJsonDecoder.kt](src/jsMain/kotlin/decoder/ManualJsMapJsonDecoder.kt)).
 
 ## Running
 ### Online
 <https://servb.github.io/kx-serialization-js-benchmark/index.html>.
 
-### Local
-Build the project via `./gradlew browserProductionWebpack`. After it, open `build/distributions/index.html` in a browser.
+### Local, browser
+Build the project via `./gradlew jsBrowserDistribution`. After it, serve `build/dist/js/productionExecutable/` (for example with `python3 -m http.server`) and open `index.html` in a browser.
 
 You will see 5 buttons, each launches its test.
 
+### Local, Node.js
+Run `./gradlew jsNodeProductionRun`. It checks that all decoders produce equal results and then runs all the tests in a row.
+
 ## Results
+### 2026: Kotlin 2.4.21, kotlinx.serialization 1.12.0
+Node.js 24.16.0 (V8) on macOS 26.6, Apple M4. 50 warm-up iterations, 100 measured iterations:
+```
+kotlinx 200KB:           avg = 5.32 ms, median = 5.30 ms, (min, max) = (5.05 ms, 6.21 ms)
+kotlinx dynamic 200KB:   avg = 3.84 ms, median = 3.76 ms, (min, max) = (3.44 ms, 5.49 ms)
+manual when 200KB:       avg = 0.48 ms, median = 0.48 ms, (min, max) = (0.46 ms, 0.67 ms)
+manual kotlin map 200KB: avg = 0.49 ms, median = 0.49 ms, (min, max) = (0.48 ms, 0.73 ms)
+manual js map 200KB:     avg = 0.49 ms, median = 0.48 ms, (min, max) = (0.46 ms, 0.73 ms)
+```
+kx is still ~8-11x slower than manual decoding, but in absolute terms 200 KB are now decoded in ~4-5 ms.
+
+### 2020: Kotlin 1.3.72, kotlinx.serialization 0.20.0
 I use Chromium 78 on Linux Mint 19.3. CPU is i7-7700HQ.
 
 There is an error every launch, but the main thing is clear: kx is much slower than manual decoding code:
