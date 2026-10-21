@@ -32,6 +32,24 @@ What matters is how much slower the slowest decoder (kotlinx `decodeFromString`)
 | 2026: Kotlin 2.4.21, kotlinx.serialization 1.12.0 | ~11x, +1008% (5.32 ms vs 0.48 ms) |
 | 2020: Kotlin 1.3.72, kotlinx.serialization 0.20.0 | ~18x, +1736% (40.4 ms vs 2.2 ms) |
 
+### Recommendation for KMP projects
+On the JS target, prefer `JSON.parse` + `decodeFromDynamic` over `decodeFromString`: in the 2026 run it is ~28% faster (3.84 ms vs 5.32 ms), while keeping the same serializers.
+Hide it behind `expect`/`actual` so other targets keep using `decodeFromString`:
+```kotlin
+// commonMain
+expect fun <T> Json.decodeFast(deserializer: DeserializationStrategy<T>, string: String): T
+
+// jsMain
+@OptIn(ExperimentalSerializationApi::class)
+actual fun <T> Json.decodeFast(deserializer: DeserializationStrategy<T>, string: String): T =
+  decodeFromDynamic(deserializer, JSON.parse(string))
+
+// other targets
+actual fun <T> Json.decodeFast(deserializer: DeserializationStrategy<T>, string: String): T =
+  decodeFromString(deserializer, string)
+```
+Caveats: `decodeFromDynamic` is marked `@ExperimentalSerializationApi`, and `JSON.parse` truncates `Long` values beyond 2^53 (`decodeFromString` doesn't). If you need such values, send them as strings with `LongAsStringSerializer`.
+
 ### 2026: Kotlin 2.4.21, kotlinx.serialization 1.12.0
 Node.js 24.16.0 (V8) on macOS 26.6, Apple M4. 50 warm-up iterations, 100 measured iterations:
 ```
