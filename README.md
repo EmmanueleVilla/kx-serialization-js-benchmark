@@ -13,7 +13,7 @@ Data classes from [Projector protocol](https://github.com/JetBrains/projector-cl
 
 ## Running
 ### Online
-<https://servb.github.io/kx-serialization-js-benchmark/index.html>.
+<https://emmanuelevilla.github.io/kx-serialization-js-benchmark/index.html>.
 
 ### Local, browser
 Build the project via `./gradlew jsBrowserDistribution`. After it, serve `build/dist/js/productionExecutable/` (for example with `python3 -m http.server`) and open `index.html` in a browser.
