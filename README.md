@@ -24,16 +24,56 @@ You will see 5 buttons, each launches its test.
 Run `./gradlew jsNodeProductionRun`. It checks that all decoders produce equal results and then runs all the tests in a row.
 
 ## Results
-Absolute times come from different machines and runtimes, so they are not comparable between runs.
-What matters is how much slower the slowest decoder (kotlinx `decodeFromString`) is than the fastest one (manual), measured on the same machine (by average time):
+Both versions were run under the same conditions: same machine (Apple M4, macOS 26.6), same runtime (Node.js 24.16.0), same harness (50 warm-up iterations, 100 measured iterations, results checked for equality), 3 alternating runs each.
 
-| Run | Slowest vs fastest |
-|---|---|
-| 2026: Kotlin 2.4.21, kotlinx.serialization 1.12.0 | ~11x, +1008% (5.32 ms vs 0.48 ms) |
-| 2020: Kotlin 1.3.72, kotlinx.serialization 0.20.0 | ~18x, +1736% (40.4 ms vs 2.2 ms) |
+- **2020**: Kotlin 1.3.72, kotlinx.serialization 0.20.0 (legacy JS backend). The original code still compiles with JDK 11 and Gradle 6.1.1; only the harness was ported, and kotlinx-html was replaced by plain DOM calls, since kotlinx-html 0.7.1 is no longer downloadable.
+- **2026**: Kotlin 2.4.21, kotlinx.serialization 1.12.0 (IR backend).
 
-### Recommendation for KMP projects
-On the JS target, prefer `JSON.parse` + `decodeFromDynamic` over `decodeFromString`: in the 2026 run it is ~28% faster (3.84 ms vs 5.32 ms), while keeping the same serializers.
+How much slower each kotlinx decoder is than the fastest one (manual `when`), by average time over the 3 runs:
+
+| Decoder | 2020 | 2026 |
+|---|---|---|
+| kotlinx `decodeFromString` | ~14.3x, +1328% | ~11.0x, +1003% |
+| kotlinx dynamic (`DynamicObjectParser` / `decodeFromDynamic`) | ~13.7x, +1273% | ~8.0x, +697% |
+| manual (`when`, Kotlin map, JS map) | 1x | 1x |
+
+The manual decoders take the same time in both versions, so the runtime is the same and the difference comes from the libraries and the compiler: from 2020 to 2026 `decodeFromString` became ~23% faster and the dynamic decoder ~42% faster. kotlinx is still an order of magnitude slower than manual decoding.
+
+The original 2020 results (Chromium 78, i7-7700HQ) came from a different machine and are kept below only for reference.
+
+### Raw output, same conditions (one representative run each)
+2020:
+```
+kotlinx 200KB:           avg = 6.70 ms, median = 6.67 ms, (min, max) = (6.31 ms, 7.13 ms)
+kotlinx dynamic 200KB:   avg = 6.39 ms, median = 6.39 ms, (min, max) = (6.10 ms, 6.79 ms)
+manual when 200KB:       avg = 0.47 ms, median = 0.47 ms, (min, max) = (0.46 ms, 0.65 ms)
+manual kotlin map 200KB: avg = 0.47 ms, median = 0.47 ms, (min, max) = (0.46 ms, 0.64 ms)
+manual js map 200KB:     avg = 0.46 ms, median = 0.46 ms, (min, max) = (0.42 ms, 0.69 ms)
+```
+2026:
+```
+kotlinx 200KB:           avg = 5.13 ms, median = 5.13 ms, (min, max) = (4.92 ms, 5.34 ms)
+kotlinx dynamic 200KB:   avg = 3.73 ms, median = 3.67 ms, (min, max) = (3.42 ms, 4.78 ms)
+manual when 200KB:       avg = 0.46 ms, median = 0.46 ms, (min, max) = (0.43 ms, 0.62 ms)
+manual kotlin map 200KB: avg = 0.48 ms, median = 0.47 ms, (min, max) = (0.43 ms, 0.67 ms)
+manual js map 200KB:     avg = 0.46 ms, median = 0.46 ms, (min, max) = (0.42 ms, 0.66 ms)
+```
+
+### Original 2020 results (different machine, not comparable)
+I use Chromium 78 on Linux Mint 19.3. CPU is i7-7700HQ.
+
+There is an error every launch, but the main thing is clear: kx is much slower than manual decoding code:
+```
+kotlinx 200KB:           avg = 40.4 ms, (min, max) = (37.4 ms, 48.3 ms)
+kotlinx DOP 200KB:       avg = 36.9 ms, (min, max) = (35.8 ms, 39.0 ms)
+manual when 200KB:       avg =  2.2 ms, (min, max) = ( 1.8 ms,  4.6 ms)
+manual kotlin map 200KB: avg =  2.2 ms, (min, max) = ( 2.0 ms,  2.7 ms)
+manual js map 200KB:     avg =  2.3 ms, (min, max) = ( 1.9 ms,  4.6 ms)
+```
+Note: in the 2020 code the "manual js map" button actually ran the manual Kotlin map decoder.
+
+## Recommendation for KMP projects
+On the JS target, prefer `JSON.parse` + `decodeFromDynamic` over `decodeFromString`: in the 2026 run it is ~28% faster, while keeping the same serializers.
 Hide it behind `expect`/`actual` so other targets keep using `decodeFromString`:
 ```kotlin
 // commonMain
@@ -49,26 +89,3 @@ actual fun <T> Json.decodeFast(deserializer: DeserializationStrategy<T>, string:
   decodeFromString(deserializer, string)
 ```
 Caveats: `decodeFromDynamic` is marked `@ExperimentalSerializationApi`, and `JSON.parse` truncates `Long` values beyond 2^53 (`decodeFromString` doesn't). If you need such values, send them as strings with `LongAsStringSerializer`.
-
-### 2026: Kotlin 2.4.21, kotlinx.serialization 1.12.0
-Node.js 24.16.0 (V8) on macOS 26.6, Apple M4. 50 warm-up iterations, 100 measured iterations:
-```
-kotlinx 200KB:           avg = 5.32 ms, median = 5.30 ms, (min, max) = (5.05 ms, 6.21 ms)
-kotlinx dynamic 200KB:   avg = 3.84 ms, median = 3.76 ms, (min, max) = (3.44 ms, 5.49 ms)
-manual when 200KB:       avg = 0.48 ms, median = 0.48 ms, (min, max) = (0.46 ms, 0.67 ms)
-manual kotlin map 200KB: avg = 0.49 ms, median = 0.49 ms, (min, max) = (0.48 ms, 0.73 ms)
-manual js map 200KB:     avg = 0.49 ms, median = 0.48 ms, (min, max) = (0.46 ms, 0.73 ms)
-```
-
-### 2020: Kotlin 1.3.72, kotlinx.serialization 0.20.0
-I use Chromium 78 on Linux Mint 19.3. CPU is i7-7700HQ.
-
-There is an error every launch, but the main thing is clear: kx is much slower than manual decoding code:
-```
-kotlinx 200KB:           avg = 40.4 ms, (min, max) = (37.4 ms, 48.3 ms)
-kotlinx DOP 200KB:       avg = 36.9 ms, (min, max) = (35.8 ms, 39.0 ms)
-manual when 200KB:       avg =  2.2 ms, (min, max) = ( 1.8 ms,  4.6 ms)
-manual kotlin map 200KB: avg =  2.2 ms, (min, max) = ( 2.0 ms,  2.7 ms)
-manual js map 200KB:     avg =  2.3 ms, (min, max) = ( 1.9 ms,  4.6 ms)
-```
-Note: in the 2020 code the "manual js map" button actually ran the manual Kotlin map decoder.
