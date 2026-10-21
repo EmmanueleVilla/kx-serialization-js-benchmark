@@ -24,6 +24,14 @@ You will see 5 buttons, each launches its test.
 Run `./gradlew jsNodeProductionRun`. It checks that all decoders produce equal results and then runs all the tests in a row.
 
 ## Results
+Absolute times come from different machines and runtimes, so they are not comparable between runs.
+What matters is how much slower the slowest decoder (kotlinx `decodeFromString`) is than the fastest one (manual), measured on the same machine (by average time):
+
+| Run | Slowest vs fastest |
+|---|---|
+| 2026: Kotlin 2.4.21, kotlinx.serialization 1.12.0 | ~11x, +1008% (5.32 ms vs 0.48 ms) |
+| 2020: Kotlin 1.3.72, kotlinx.serialization 0.20.0 | ~18x, +1736% (40.4 ms vs 2.2 ms) |
+
 ### 2026: Kotlin 2.4.21, kotlinx.serialization 1.12.0
 Node.js 24.16.0 (V8) on macOS 26.6, Apple M4. 50 warm-up iterations, 100 measured iterations:
 ```
@@ -33,7 +41,6 @@ manual when 200KB:       avg = 0.48 ms, median = 0.48 ms, (min, max) = (0.46 ms,
 manual kotlin map 200KB: avg = 0.49 ms, median = 0.49 ms, (min, max) = (0.48 ms, 0.73 ms)
 manual js map 200KB:     avg = 0.49 ms, median = 0.48 ms, (min, max) = (0.46 ms, 0.73 ms)
 ```
-kx is still ~8-11x slower than manual decoding, but in absolute terms 200 KB are now decoded in ~4-5 ms.
 
 ### 2020: Kotlin 1.3.72, kotlinx.serialization 0.20.0
 I use Chromium 78 on Linux Mint 19.3. CPU is i7-7700HQ.
@@ -46,3 +53,4 @@ manual when 200KB:       avg =  2.2 ms, (min, max) = ( 1.8 ms,  4.6 ms)
 manual kotlin map 200KB: avg =  2.2 ms, (min, max) = ( 2.0 ms,  2.7 ms)
 manual js map 200KB:     avg =  2.3 ms, (min, max) = ( 1.9 ms,  4.6 ms)
 ```
+Note: in the 2020 code the "manual js map" button actually ran the manual Kotlin map decoder.
